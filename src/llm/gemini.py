@@ -44,11 +44,23 @@ class GeminiClient:
         if system_instruction:
             config.system_instruction = system_instruction
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=config,
-        )
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=config,
+            )
+        except Exception as exc:
+            # Google Gen AI raises ClientError for quota/rate-limit errors.
+            # Don't retry these ourselves. The SDK already handles its own
+            # retry behavior, and retrying a 429 just wastes quota.
+            if getattr(exc, "code", None) == 429 or "429" in str(exc):
+                raise RuntimeError(
+                    "Gemini API quota/rate limit reached. "
+                    "Please wait before trying again."
+                ) from exc
+
+            raise
 
         if not response.text:
             raise RuntimeError("Gemini returned an empty response.")

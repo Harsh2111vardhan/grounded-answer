@@ -18,6 +18,16 @@ provided does not establish it. Do not guess.
 If the evidence contains conflicting provisions, do not choose one silently.
 State that the provisions conflict and cite both sides.
 
+If the evidence does not establish the answer:
+- Clearly state that the supplied policy evidence does not establish it.
+- Tell the user who to contact for clarification.
+- Use a person, office, department, or referral only if it is explicitly
+  identified in the supplied evidence.
+- If no specific contact is identified in the evidence, recommend contacting
+  the local Department district office.
+- Never invent names, phone numbers, email addresses, office locations,
+  supervisors, or other contact details.
+
 Keep the answer concise and directly answer the question.
 """
 
@@ -45,7 +55,8 @@ class PolicyAnswerer:
     ) -> str:
         if not evidence:
             return (
-                "I cannot answer this from the supplied policy evidence."
+                "I cannot answer this from the supplied policy evidence. "
+                "Please contact your local Department district office for clarification."
             )
 
         evidence_text = self._format_evidence(evidence)
