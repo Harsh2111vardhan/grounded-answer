@@ -1,0 +1,6 @@
+google-genai
+sentence-transformers
+rank-bm25
+python-dotenv
+numpy
+pytest

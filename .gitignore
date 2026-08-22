@@ -1,0 +1,70 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# =========================
+# Virtual environments
+# =========================
+
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# Environment / secrets
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+# Testing / coverage
+# =========================
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# =========================
+# Build artifacts
+# =========================
+
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Generated indexes / cache
+# =========================
+
+.cache/
+*.pkl
+*.pickle
+*.index
+*.npy
+*.npz
+
+# =========================
+# IDEs
+# =========================
+
+.vscode/
+.idea/
+*.iml
+
+# =========================
+# OS
+# =========================
+
+.DS_Store
+Thumbs.db
