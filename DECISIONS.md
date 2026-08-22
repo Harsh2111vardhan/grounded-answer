@@ -5,11 +5,8 @@ read through the policy manual before starting implementation and found the foll
 ### Full-time student reference
 
 The manual refers to full-time education in §3.2.3 and §5.2.3, saying that it is addressed separately.
-
 §7.1.3 then specifically points to §5.4 for the exception relating to full-time students.
-
 However, §5.4 is about households including a person receiving a care allowance, not full-time students.
-
 This looks like an apparent gap or broken cross-reference. I don't want to hard-code this specific case. The system should detect when a referenced clause does not actually support what the surrounding text suggests.
 
 ### Reporting period
@@ -49,3 +46,16 @@ Use the policy's existing clause numbers as the main chunk boundaries so citatio
 If the policy does not actually support the answer, the system should refuse instead of filling the gap with general knowledge.
 
 More decisions will be added as implementation progresses.
+===============================================================================================
+### Parser format
+
+While inspecting the manual, I found that clause headings are not completely consistent.
+Most clauses use a format like:
+
+**1.1.1** Clause text
+
+but some include the clause title inside the heading:
+
+**1.4.1 Applicant** — Clause text
+
+The parser initially handled only the first format. This was caught by checking the parsed output against the source manual, so the parser will be updated to handle both formats.
