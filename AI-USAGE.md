@@ -1,6 +1,6 @@
 # AI-USAGE.md
 
-AI tools were used extensively during development, including for code
+AI tools were used during development, including for code
 generation, debugging, testing, and documentation.
 
 ## How AI was used
@@ -10,8 +10,8 @@ generation, debugging, testing, and documentation.
   detection, citations, amendments, and CLI behavior.
 - Assisted with debugging and fixing implementation issues.
 - Helped generate and refine automated tests and evaluation questions.
-- Helped format and clean up policy documents and Markdown documentation.
-- Helped draft and refine the README, DECISIONS.md, and evaluation results.
+- Helped format and clean up Markdown documentation.
+- Helped refine the README, DECISIONS.md, and evaluation results.
 
 ## Human review and responsibility
 
