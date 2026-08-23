@@ -8,13 +8,13 @@ from .models import PolicyClause
 
 CLAUSE_RE = re.compile(
     r"^\s*\*\*"
-    r"(?P<id>\d+\.\d+\.\d+(?:\([a-z]+\))?)"
+    r"(?P<id>\d+\.\d+\.\d+(?:\([a-z]+\)|[A-Za-z]+)?)"
     r"(?:\s+(?P<title>[^*]+?))?"
     r"\*\*\s*(?P<text>.*)$"
 )
 
 POSSIBLE_CLAUSE_RE = re.compile(
-    r"^\s*\*\*(?P<id>\d+\.\d+\.\d+(?:\([a-z]+\))?)"
+    r"^\s*\*\*(?P<id>\d+\.\d+\.\d+(?:\([a-z]+\)|[A-Za-z]+)?)"
 )
 
 PART_RE = re.compile(

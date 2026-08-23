@@ -126,7 +126,16 @@ If a clause is referenced but not supplied, do not cite that clause.
 Policy evidence:
 {evidence_text}
 
-Write the final answer for the user.
+Write the final answer for the user using the policy wording as the
+grounding source.
+
+For date-sensitive questions, distinguish between:
+- the date/event supplied by the user, and
+- the policy's stated time period.
+
+If the policy says "14 calendar days", answer "14 calendar days".
+Do not calculate the resulting calendar date unless the user explicitly asks
+for that calculation.
 
 Requirements:
 1. Answer the question directly.
@@ -145,6 +154,13 @@ Requirements:
 11. If the evidence is insufficient, say so rather than guessing.
 12. If the evidence conflicts, explicitly state the conflict instead of
     selecting one provision.
+13. Do not calculate, derive, or add a specific calendar date unless the
+    supplied policy evidence explicitly states that date or the user
+    explicitly asks you to calculate a date.
+14. When the policy gives a time period such as "14 calendar days", preserve
+    that period exactly rather than converting it into a calendar date.
+15. Do not add information merely because it can be mathematically derived
+    from the user's scenario.
 """
 
         return self.client.generate(

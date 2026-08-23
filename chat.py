@@ -79,7 +79,7 @@ def main() -> None:
             evidence = _quiet_call(
                 retriever.search,
                 question,
-                top_k=5,
+                top_k=10,
             )
 
             if not evidence:

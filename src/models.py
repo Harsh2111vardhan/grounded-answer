@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Literal
 
 
@@ -9,6 +12,11 @@ class PolicyClause:
     part: str
     section: str
     line_no: int
+
+    effective_from: date | None = None
+    effective_to: date | None = None
+    applicability_basis: str | None = None
+    source: str = "policy-manual"
 
 
 @dataclass
@@ -29,6 +37,11 @@ class Evidence:
     reference_consistent: bool | None = None
     reference_inconsistency_note: str | None = None
 
+    effective_from: date | None = None
+    effective_to: date | None = None
+    applicability_basis: str | None = None
+    source: str = "policy-manual"
+
 
 DecisionOutcome = Literal["ANSWER", "CONFLICT", "REFUSE", "PARTIAL"]
 
@@ -38,7 +51,8 @@ class ConflictRecord:
     clause_ids: list[str]
     proposition_summary: str
     detection_method: Literal[
-        "reference_inconsistency", "proposition_mismatch"
+        "reference_inconsistency",
+        "proposition_mismatch",
     ]
 
 
