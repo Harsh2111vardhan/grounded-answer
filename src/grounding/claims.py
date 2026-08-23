@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 
 CITATION_RE = re.compile(
-    r"§(?P<id>\d+\.\d+\.\d+(?:\([a-z]+\))?)"
+    r"§\d+\.\d+\.\d+(?:\([a-z]+\))?",
+    re.IGNORECASE,
 )
 
 
@@ -15,41 +16,72 @@ class Claim:
     citation: str
 
 
+def _strip_list_marker(text: str) -> str:
+    return re.sub(
+        r"^\s*[-*•]\s*",
+        "",
+        text,
+    ).strip()
+
+
+def _extract_claim_text(
+    answer: str,
+    citation_start: int,
+) -> str:
+    """
+    Extract the factual sentence immediately preceding a citation.
+
+    The citation itself is not included in the claim.
+    """
+
+    prefix = answer[:citation_start].rstrip()
+
+    if not prefix:
+        return ""
+
+    # Split only on actual sentence boundaries.
+    parts = re.split(
+        r"(?<=[.!?])\s+|\n+",
+        prefix,
+    )
+
+    claim = parts[-1].strip()
+
+    if not claim and len(parts) > 1:
+        claim = parts[-2].strip()
+
+    return _strip_list_marker(claim)
+
+
 def extract_claims(
     answer: str,
 ) -> list[Claim]:
     """
-    Extract one claim for every citation.
+    Create one Claim for every policy citation.
 
-    A citation belongs to the factual text immediately preceding it.
-    Multiple citations in the same sentence create separate claims.
+    Example:
+
+        The rule is described in §4.3.2 and confirmed by §9.1.4.
+
+    produces two claims, one for each citation.
+
+    A citation at the end of a sentence belongs to the complete sentence
+    immediately preceding it.
     """
 
     claims: list[Claim] = []
 
-    for match in CITATION_RE.finditer(answer):
-        citation = f"§{match.group('id')}"
+    matches = list(
+        CITATION_RE.finditer(answer)
+    )
 
-        # Look backwards from the citation to the beginning of the
-        # current sentence.
-        before = answer[:match.start()]
+    for match in matches:
+        citation = match.group(0)
 
-        sentence_match = re.search(
-            r"([^.!?\n]*(?:[.!?])?)\s*$",
-            before,
+        claim_text = _extract_claim_text(
+            answer,
+            match.start(),
         )
-
-        claim_text = (
-            sentence_match.group(1).strip()
-            if sentence_match
-            else before.strip()
-        )
-
-        claim_text = re.sub(
-            r"^\s*[-*•]\s*",
-            "",
-            claim_text,
-        ).strip()
 
         if not claim_text:
             continue
@@ -79,21 +111,13 @@ def find_uncited_sentences(
     uncited: list[str] = []
 
     for sentence in sentences:
-        sentence = sentence.strip()
+        sentence = _strip_list_marker(
+            sentence.strip()
+        )
 
         if not sentence:
             continue
 
-        sentence = re.sub(
-            r"^\s*[-*•]\s*",
-            "",
-            sentence,
-        ).strip()
-
-        if not sentence:
-            continue
-
-        # Ignore headings and obvious non-substantive formatting.
         if sentence.upper() in {
             "SOURCES",
             "PARTIAL ANSWER",
