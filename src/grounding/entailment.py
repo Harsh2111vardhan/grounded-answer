@@ -59,7 +59,11 @@ Does this clause support this specific claim?
         )
 
         first_line = next(
-            (line.strip().upper() for line in response.splitlines() if line.strip()),
+            (
+                line.strip().upper()
+                for line in response.splitlines()
+                if line.strip()
+            ),
             "",
         )
 
@@ -93,8 +97,17 @@ Does this clause support this specific claim?
         claims: list[Claim],
         evidence: list[Evidence],
     ) -> list[EntailmentResult]:
-        evidence_by_id = {item.clause_id: item for item in evidence}
+        evidence_by_id = {
+            item.clause_id: item
+            for item in evidence
+        }
+
         results: list[EntailmentResult] = []
+
+        # Cache results for identical claim/citation pairs.
+        # This prevents repeated Gemini calls for the same claim and
+        # avoids inconsistent results caused by nondeterministic generation.
+        checked: dict[tuple[str, str], EntailmentResult] = {}
 
         for claim in claims:
             clause = evidence_by_id.get(claim.citation)
@@ -105,11 +118,29 @@ Does this clause support this specific claim?
                         claim=claim.text,
                         citation=claim.citation,
                         supported=False,
-                        reason="Cited clause is not present in the supplied evidence.",
+                        reason=(
+                            "Cited clause is not present in the supplied "
+                            "evidence."
+                        ),
                     )
                 )
                 continue
 
-            results.append(self.check(claim, clause))
+            key = (
+                claim.text.strip(),
+                claim.citation,
+            )
+
+            if key in checked:
+                results.append(checked[key])
+                continue
+
+            result = self.check(
+                claim,
+                clause,
+            )
+
+            checked[key] = result
+            results.append(result)
 
         return results

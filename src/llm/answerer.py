@@ -25,36 +25,36 @@ Do not place multiple citations at the end of the same factual claim.
 If two different clauses support two different facts, write them as separate
 sentences or bullet points with one citation attached to each fact.
 
-For example, do NOT write:
-"Recover at the higher rate under §9.3.2 §9.6.1."
-
-Instead write:
-"Recover at the higher rate. §9.6.1"
-
-or, where the cited clause itself establishes the referenced provision:
-"Recover at the higher rate under §9.3.2. §9.6.1"
-
-The citation at the end of each factual claim must identify the clause that
-directly supports that claim.
+The citation must identify the clause that directly supports the claim.
 
 Never invent, infer, or reuse an unavailable citation.
+
+ANSWER STYLE:
+
+Answer the user's question directly.
+
+For simple yes/no or definition questions:
+- Give the direct answer first.
+- Use one or two concise sentences.
+- Do not repeat the definition unless it is needed to explain the answer.
+- Do not restate the same rule in multiple ways.
+- Do not add unnecessary background information.
+
+For questions with multiple requested facts:
+- Answer every requested part.
+- Use short bullet points when useful.
+- Give one citation per factual claim.
+- Do not add unrelated policy details.
+
+Do not strengthen policy language with words such as "strictly", "always",
+"never", "only", "automatically", or "necessarily" unless that meaning is
+explicitly supported by the evidence.
 
 If the evidence does not establish an answer, say that the supplied policy
 evidence does not establish it. Do not guess.
 
 If the evidence contains conflicting provisions, do not choose one silently.
 State that the provisions conflict and cite the relevant provisions.
-
-Keep the answer concise, but make sure every part of the user's question
-is answered before stopping.
-
-When the question asks for multiple pieces of information:
-- Answer every requested part.
-- Prefer short sentences or bullet points.
-- Do not repeat the same policy wording unnecessarily.
-- Do not add background information that was not requested.
-- Do not add procedural details or conditions unless they are necessary
-  to answer the question.
 
 ESCALATION INSTRUCTION:
 
@@ -117,27 +117,34 @@ You may cite ONLY the clause IDs listed under ALLOWED CITATIONS.
 
 Each factual claim must have exactly ONE grounding citation.
 
-Do not combine citations from different clauses into one sentence or bullet.
+The citation must directly support the claim immediately before it.
+
+Do not combine multiple citations into one factual claim.
 
 If a clause is referenced but not supplied, do not cite that clause.
 
 Policy evidence:
 {evidence_text}
 
-Write a concise, complete answer.
+Write the final answer for the user.
 
 Requirements:
-1. Answer every part of the question.
-2. Use only the supplied policy evidence.
-3. Every substantive factual claim must have exactly one citation.
-4. The citation must directly support the claim immediately before it.
+1. Answer the question directly.
+2. Answer every part if the question contains multiple parts.
+3. Use only the supplied policy evidence.
+4. Every substantive factual claim must have exactly one citation.
 5. Every citation must be one of the ALLOWED CITATIONS.
-6. If a clause is referenced but not supplied, do not cite it.
-7. If the supplied evidence is insufficient, explicitly say so instead
-   of guessing.
-8. If multiple facts are requested, use separate bullet points.
-9. Do not add unnecessary policy details.
-10. Do not stop until every requested part has been answered.
+6. For a simple yes/no question, answer yes or no first.
+7. For a simple question, keep the answer to one or two concise sentences
+   unless more detail is required to answer it completely.
+8. Do not repeat the same policy requirement in multiple bullets or sentences.
+9. Do not add unnecessary policy details, conditions, procedures, or
+   cross-references.
+10. Do not strengthen the policy with unsupported words such as "strictly",
+    "always", "never", "only", "automatically", or "necessarily".
+11. If the evidence is insufficient, say so rather than guessing.
+12. If the evidence conflicts, explicitly state the conflict instead of
+    selecting one provision.
 """
 
         return self.client.generate(
