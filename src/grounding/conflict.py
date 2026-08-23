@@ -53,12 +53,6 @@ def _terms(text: str) -> set[str]:
 
 
 def _numbers(text: str) -> list[int]:
-    """
-    Extract only numbers that are part of explicit time periods.
-
-    This prevents section numbers such as §9.1.4 from being interpreted
-    as deadline values.
-    """
     matches = re.findall(
         r"\b(\d+)\s+(?:calendar\s+)?"
         r"(?:day|days|week|weeks|month|months|year|years)\b",
@@ -82,12 +76,59 @@ def _potential_conflict_pair(
     clause_a: Evidence,
     clause_b: Evidence,
 ) -> bool:
-    """
-    Cheap filter before checking a pair for an actual conflict.
-    """
     overlap = _terms(clause_a.text) & _terms(clause_b.text)
-
     return len(overlap) >= 2
+
+
+def _is_method_question(question: str) -> bool:
+    """
+    Detect questions asking how/where/by what means an action can be
+    performed rather than asking about the deadline for that action.
+    """
+
+    normalized = question.lower()
+
+    method_patterns = (
+        r"\bhow\s+(?:can|do|does|may|should|must)\b",
+        r"\bhow\s+to\b",
+        r"\bwhat\s+(?:way|ways|method|methods)\b",
+        r"\bwhere\s+(?:can|do|does|may|should)\b",
+        r"\bby\s+what\s+(?:method|means)\b",
+        r"\bwhat\s+are\s+the\s+(?:ways|methods)\b",
+    )
+
+    return any(
+        re.search(pattern, normalized)
+        for pattern in method_patterns
+    )
+
+
+def _is_deadline_question(question: str) -> bool:
+    """
+    Detect questions where the requested policy attribute is a deadline,
+    reporting period, time limit, or similar time requirement.
+    """
+
+    normalized = question.lower()
+
+    deadline_terms = (
+        r"\bdeadline\b",
+        r"\bhow\s+long\b",
+        r"\bhow\s+many\s+days\b",
+        r"\bhow\s+many\s+weeks\b",
+        r"\bhow\s+many\s+months\b",
+        r"\btime\s+limit\b",
+        r"\btime\s+period\b",
+        r"\bwithin\s+what\b",
+        r"\bwhen\s+must\b",
+        r"\bwhen\s+should\b",
+        r"\bby\s+when\b",
+    )
+
+    return any(
+        re.search(pattern, normalized)
+        for pattern in deadline_terms
+    )
 
 
 def _question_relevant(
@@ -96,9 +137,14 @@ def _question_relevant(
     clause_b: Evidence,
 ) -> bool:
     """
-    Only consider a conflict when both clauses share meaningful
-    subject matter with the user's question.
+    Determine whether a conflict between two clauses is relevant to the
+    specific aspect of policy asked about.
+
+    Generic lexical overlap is retained for ordinary questions, but a
+    deadline conflict is not treated as relevant to a question asking only
+    how or where an action is performed.
     """
+
     question_terms = _terms(question)
 
     if not question_terms:
@@ -111,32 +157,26 @@ def _question_relevant(
 
     relevant_terms = question_terms & shared_clause_terms
 
-    return len(relevant_terms) >= 2
+    if len(relevant_terms) < 2:
+        return False
+
+    # A conflict between reporting deadlines should only block an answer
+    # when the question is actually asking about the deadline/time limit.
+    if (
+        _has_deadline(clause_a.text)
+        and _has_deadline(clause_b.text)
+        and _is_method_question(question)
+        and not _is_deadline_question(question)
+    ):
+        return False
+
+    return True
 
 
 def _deadline_conflict(
     clause_a: Evidence,
     clause_b: Evidence,
 ) -> str | None:
-    """
-    Detect clear deadline contradictions.
-
-    Different time periods are not automatically contradictory.
-    The clauses must describe the same type of obligation.
-
-    For example:
-        §4.3.2 -> report a change within 10 days
-        §9.1.4 -> reported change within 30 days
-
-    is a potential conflict.
-
-    But:
-        §9.6.1 -> exclusion for 13 weeks
-        §9.1.4 -> reporting within 30 days
-
-    is not a deadline conflict because exclusion and reporting are
-    different obligations.
-    """
     if not (_has_deadline(clause_a.text) and _has_deadline(clause_b.text)):
         return None
 
@@ -154,7 +194,6 @@ def _deadline_conflict(
 
     shared = terms_a & terms_b
 
-    # Reporting / notification obligation.
     reporting_terms = {
         "report",
         "reported",
@@ -170,7 +209,6 @@ def _deadline_conflict(
             f"({numbers_a[0]} vs {numbers_b[0]})."
         )
 
-    # Application / submission obligation.
     application_terms = {
         "application",
         "applicant",
@@ -185,7 +223,6 @@ def _deadline_conflict(
             f"({numbers_a[0]} vs {numbers_b[0]})."
         )
 
-    # Interview / attendance obligation.
     interview_terms = {
         "interview",
         "attend",
@@ -198,7 +235,6 @@ def _deadline_conflict(
             f"({numbers_a[0]} vs {numbers_b[0]})."
         )
 
-    # Review / appeal obligation.
     review_terms = {
         "review",
         "appeal",
@@ -218,9 +254,8 @@ class ConflictChecker:
     """
     Local conflict detector.
 
-    The checker does not call an LLM. It detects clear textual
-    contradictions while avoiding unrelated time periods being treated
-    as conflicting rules.
+    Detects clear textual contradictions while considering whether the
+    contradiction is relevant to the specific question being asked.
     """
 
     def check(
