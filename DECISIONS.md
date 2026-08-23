@@ -1,216 +1,248 @@
-# Decisions
+# DECISIONS.md
 
-## 1st Review
+## 1. Goal
 
-I read through the policy manual before starting implementation and found the
-following inconsistencies.
+The priority was to build a working grounded policy assistant before adding
+extra features.
 
-### Full-time student reference
+Core flow:
 
-The manual refers to full-time education in §3.2.3 and §5.2.3, saying that it
-is addressed separately.
+`Question → Retrieval → Evidence → Answer → Grounding Gate → Decision`
 
-§7.1.3 then specifically points to §5.4 for the exception relating to
-full-time students.
+The system can return `ANSWER`, `PARTIAL`, `CONFLICT`, or `REFUSE`.
 
-However, §5.4 is about households including a person receiving a care
-allowance, not full-time students.
+---
 
-This looks like an apparent gap or broken cross-reference. I don't want to
-hard-code this specific case. The system should detect when a referenced
-clause does not actually support what the surrounding text suggests.
+## 2. Considered, Chosen, Rejected
 
-### Reporting period
+### Technology
 
-There is also an inconsistency between:
+**Considered:** Python + local retrieval, LangChain/vector DB, external web
+search.
 
-- §4.3.2, which requires changes to be reported within 10 calendar days.
-- §9.1.4, which refers to 30 calendar days.
+**Chosen:** Python 3.11 with BM25 + semantic retrieval, Gemini, and pytest.
 
-The system should surface this conflict rather than silently choosing one.
-
-## Initial architecture
-
-The initial plan was:
-
-Question -> Retrieval -> Evidence -> Verification -> Answer / Refusal
-
-I kept this structure because I wanted the grounding checks to happen after
-retrieval and generation rather than treating the LLM's response as
-automatically trustworthy.
-
-## Planned Stack
-
-- Python
-- Gemini
-- Sentence Transformers
-- BM25
-- pytest
-- CLI
+**Rejected:** LangChain and a vector database because the supplied corpus is
+small and did not justify the added infrastructure. Web search was rejected
+because the supplied policy documents are the source of truth.
 
 ### Retrieval
 
-I chose BM25 + local sentence-transformer embeddings, combined using reciprocal
-rank fusion.
+**Considered:** keyword-only, semantic-only, hybrid retrieval.
 
-The idea was to combine keyword matching with semantic similarity rather than
-depending entirely on either method.
+**Chosen:** hybrid BM25 + semantic retrieval to cover both exact policy terms
+and semantically similar questions.
 
-### Chunking
+**Rejected:** relying on either method alone.
 
-I decided to use the policy's existing clause numbers as the main chunk
-boundaries so citations can point directly to clauses such as §4.3.2.
+### Grounding
 
-This also makes the retrieved evidence easier to inspect and verify.
+**Considered:** trusting the generated answer, citation-only validation,
+post-generation claim verification.
 
-### Refusal
+**Chosen:** post-generation grounding with citation, conflict, claim, and
+entailment checks.
 
-If the policy does not actually support the answer, the system should refuse
-instead of filling the gap with general knowledge.
+**Rejected:** trusting the LLM alone because a plausible answer is not proof
+that the policy supports it.
 
-I also added an escalation step so that an unsupported answer does not simply
-end with "I don't know". If the evidence does not identify a more specific
-contact, the response directs the user to the local Department district
-office.
+### Policy conflicts
 
-## Parser format
+**Considered:** choose the most recent/relevant provision automatically or
+surface the conflict.
 
-While inspecting the manual, I found that clause headings are not completely
-consistent.
+**Chosen:** surface relevant conflicts and return `CONFLICT`.
 
-Most clauses use a format like:
+**Rejected:** silently selecting one provision because the manual may not
+establish precedence.
 
-**1.1.1** Clause text
+### Amendments
 
-but some include the clause title inside the heading:
+**Considered:** hard-code amended values into existing clauses or add a separate
+policy applicability layer.
 
-**1.4.1 Applicant** — Clause text
+**Chosen:** a separate amendment layer with effective dates and applicability
+basis.
 
-The parser initially handled only the first format. This was caught by checking
-the parsed output against the source manual, so the parser was updated to
-handle both formats.
+**Rejected:** hard-coding amendments into retrieval/answering logic because it
+would make future amendments harder to extend.
 
-## Citation validation
+Retrieval, policy applicability, answer generation, and grounding remain
+separate so changes to one part do not require rewriting the system.
 
-I decided that having a citation in an answer is not enough.
+---
 
-The citation must also refer to a clause that was actually present in the
-retrieved evidence.
+## 3. Grounding and Refusal
 
-This prevents the model from citing a clause that it was not given.
+A generated answer is not accepted just because it sounds correct.
 
-## Claim-level verification
+The grounding gate checks:
 
-I added claim extraction and entailment checking because a valid citation does
-not necessarily mean that the claim is supported by that clause.
+1. Evidence exists.
+2. Citations refer to retrieved clauses.
+3. Relevant conflicts are detected.
+4. Claims can be extracted.
+5. Claims are supported by the retrieved evidence.
 
-Each generated claim is checked against its cited policy clause before the
-grounding decision is made.
+If the evidence does not establish the answer, the system refuses rather than
+guessing.
 
-## Conflict detection
+I deliberately chose a conservative refusal threshold because an unsupported
+policy answer is worse than asking a user to seek clarification.
 
-I added a separate conflict checker so the system can identify cases where
-retrieved provisions appear to contradict each other.
+---
 
-The first version was too broad. It could treat unrelated clauses as
-conflicting simply because they contained different numbers.
+## 4. Conflict Handling
 
-I changed it so that clauses must have meaningful term overlap before a
-potential deadline conflict is considered.
+The policy contains provisions that can conflict.
 
-This fixed the case where an unrelated deadline could cause an otherwise
-correct answer to be marked as CONFLICT.
+The system does not silently choose one. When a relevant conflict is detected,
+it shows the conflicting clauses and returns `CONFLICT`.
 
-## Keep conflict detection local
+The conflict detector also considers the question so unrelated different
+numbers in retrieved clauses are not automatically treated as contradictions.
 
-I chose not to use an LLM for the basic conflict detection.
+For example, a reporting-method question can still be answered from the
+reporting-method clause even when a separate retrieved clause contains a
+conflicting deadline.
 
-Clear cases such as two overlapping provisions containing different deadlines
-can be detected directly from the text.
+---
 
-This reduces API usage and also makes the behaviour deterministic and easier
-to test.
+## 5. Day-Two Amendment
 
-## Grounding gate
+The amendment requirement was handled by adding a policy layer rather than
+rewriting the retrieval and grounding pipeline.
 
-I added a final grounding gate which turns the verification results into one
-of four decisions:
+Amendments are represented with:
 
-- ANSWER
-- PARTIAL
-- REFUSE
-- CONFLICT
+- amendment ID;
+- effective date;
+- target clause;
+- operation;
+- applicability basis.
 
-The purpose is to keep answer generation separate from the decision about
-whether the answer is actually safe to return.
+The system distinguishes event-based applicability from
+determination-based applicability.
 
-## User-facing rendering
+This matters because a change-of-circumstances rule may depend on when the
+change occurred, while a sanction rule may depend on when the determination
+was made.
 
-I added a separate renderer rather than putting formatting logic inside the
-grounding gate.
+This allows the same question to produce different valid results for different
+dates without manually replacing the original policy.
 
-This keeps the grounding logic focused on making the decision while the
-renderer handles how that decision is shown to the user.
+---
 
-The output now shows the answer, sources, and a next step when the system
-cannot safely answer.
+## 6. What I Cut
 
-## CLI instead of UI
+To keep the submission focused, I did not build:
 
-I decided to keep the project CLI-based.
+- a web UI;
+- authentication;
+- conversation memory;
+- external policy/web search;
+- automatic contact with government departments;
+- production-scale infrastructure.
 
-The handbook does not require a UI, and the CLI is enough to demonstrate the
-complete pipeline. I would rather keep the implementation focused on
-grounding than spend the remaining time building a frontend.
+These would add complexity without improving the required grounded-answer
+workflow for the supplied corpus.
 
-## Evaluation
+---
 
-I added a separate evaluation runner with predefined questions and expected
-grounding decisions.
+## 7. What the Solution Does Not Do
 
-I used it to test normal answers, conflicts, unsupported questions and
-questions requiring multiple policy provisions.
+The system does not:
 
-The evaluation exposed the false-conflict problem, which led to the relevance
-filtering change.
+- invent missing policy;
+- use general knowledge to fill policy gaps;
+- silently resolve conflicting provisions;
+- claim an ambiguous policy has a unique answer;
+- perform external actions;
+- provide legal advice;
+- guarantee correctness beyond the supplied evidence;
+- support every possible amendment format.
 
-## Entailment caching
+When the evidence is insufficient, the intended behavior is to say so.
 
-I found that the same claim and citation could be checked more than once.
+---
 
-I added caching inside the entailment checker so identical claim/citation pairs
-do not trigger repeated Gemini calls.
+## 8. Testing
 
-Apart from reducing API usage, this also avoids getting inconsistent results
-from repeated LLM checks of exactly the same claim.
+The project includes automated tests for retrieval, parsing, amendments,
+citations, claims, conflicts, grounding, entailment, and rendering.
 
-## Answer formatting
+The final evaluation includes:
 
-The generated answers initially contained too much repetition and sometimes
-put multiple citations around the same claim.
+- normal grounded answers;
+- unsupported questions;
+- conflicting provisions;
+- amended rules;
+- event-based applicability;
+- determination-based applicability;
+- an explicit date-calculation edge case.
 
-I tightened the answer-generation instructions so that each factual claim has
-one clear grounding citation and simple questions are answered directly
-without unnecessary repetition.
+The final evaluation contains 11 cases: **10 passed and 1 intentionally
+failed**.
 
-## What I would have done differently
+The failed case is documented in `evaluation/evaluation_results.md` and exposes
+a known limitation in exact calendar-date calculation.
 
-The first conflict detector was too aggressive. I should have considered
-whether retrieved clauses were actually about the same subject before
-comparing their numbers.
+---
 
-I also could have designed the claim/citation relationship more carefully from
-the beginning. Multiple citations attached to the same generated sentence
-created unnecessary ambiguity during entailment checking.
+## 9. Innovation
 
-## Current direction
+Innovation was kept secondary to the required functionality.
 
-The original implementation assumed that the consolidated manual represented
-the policy to apply.
+The main design choice beyond basic retrieval and generation is the explicit
+grounding pipeline:
 
-The new amendment breaks that assumption because the correct answer can depend
-on the date of the relevant claim or change of circumstances.
+`Evidence → Citation → Conflict → Claims → Entailment → Decision`
 
-I am keeping the original manual intact rather than replacing old clauses with
-new values. The next change will add date-aware policy resolution so the system
-can determine which provision applies to the relevant date.
+This makes the system distinguish between:
+
+- a supported answer;
+- insufficient evidence;
+- partial support;
+- an unresolved policy conflict.
+
+The goal was reliability rather than adding a feature that could make the
+submission harder to run or explain.
+
+---
+
+## 10. Trade-offs
+
+### Conservative refusal
+
+A stricter grounding threshold can produce more refusals, but reduces the risk
+of confident unsupported policy answers.
+
+### Local architecture
+
+The current design is simple and reproducible for the supplied corpus, but is
+not intended for very large policy collections.
+
+### Deterministic checks
+
+Citation and conflict checks are handled outside the LLM where possible, making
+important failure paths easier to test and inspect.
+
+---
+
+## 11. What I Would Improve First
+
+If more time were available, I would first:
+
+1. Expand the labelled evaluation set with more edge cases.
+2. Improve semantic conflict detection for less obvious contradictions.
+3. Add broader temporal tests for multiple and overlapping amendments.
+4. Improve claim extraction and citation verification.
+5. Add direct navigation from citations to source text.
+
+---
+
+## Final Principle
+
+**Answer when the policy evidence supports the answer. Stop when it does not.**
+
+The floor was prioritized over extra complexity.

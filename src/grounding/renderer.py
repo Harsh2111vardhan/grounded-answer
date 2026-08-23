@@ -11,7 +11,91 @@ _CITATION_PATTERN = re.compile(r"§\d+(?:\.\d+)+")
 
 def _citation_for_text(text: str) -> str:
     """Convert inline clause citations into visually distinct citations."""
-    return _CITATION_PATTERN.sub(lambda match: f"【{match.group(0)}】", text)
+    return _CITATION_PATTERN.sub(
+        lambda match: f"【{match.group(0)}】",
+        text,
+    )
+
+
+def _grounding_check_block(
+    result: GroundingResult,
+) -> list[str]:
+    """
+    Render the evidence-based grounding decision.
+
+    The grounding check exposes the checks already performed by
+    GroundingGate. It does not introduce a separate confidence score.
+    """
+
+    if result.decision == GroundingDecision.ANSWER:
+        evidence_status = "sufficient"
+        claim_status = (
+            "supported"
+            if any(item.supported for item in result.entailments)
+            else "unsupported"
+        )
+        conflict_status = "none"
+
+    elif result.decision == GroundingDecision.PARTIAL:
+        evidence_status = "partial"
+        claim_status = (
+            "partially supported"
+            if any(item.supported for item in result.entailments)
+            else "unsupported"
+        )
+        conflict_status = "none"
+
+    elif result.decision == GroundingDecision.CONFLICT:
+        evidence_status = "sufficient"
+        claim_status = "not evaluated"
+        conflict_status = "detected"
+
+    else:
+        evidence_status = (
+            "insufficient"
+            if not result.entailments
+            or not any(item.supported for item in result.entailments)
+            else "partial"
+        )
+
+        claim_status = (
+            "unsupported"
+            if not any(item.supported for item in result.entailments)
+            else "partially supported"
+        )
+
+        conflict_status = (
+            "detected"
+            if result.conflicts
+            else "none"
+        )
+
+    # Use the production CitationCheck when available, while remaining
+    # compatible with lightweight test stubs.
+    citation_valid = getattr(
+        result.citation_check,
+        "valid",
+        not bool(
+            getattr(
+                result.citation_check,
+                "invalid_citations",
+                [],
+            )
+        ),
+    )
+
+    citation_status = "valid" if citation_valid else "invalid"
+
+    return [
+        "",
+        "GROUNDING CHECK",
+        "────────────────────────────────────────",
+        f"Evidence:      {evidence_status}",
+        f"Citation:      {citation_status}",
+        f"Conflict:      {conflict_status}",
+        f"Claim support: {claim_status}",
+        f"Decision:      {result.decision.value}",
+    ]
 
 
 def _source_block(
@@ -63,6 +147,10 @@ def render_grounding_result(
         ]
 
         lines.extend(
+            _grounding_check_block(result)
+        )
+
+        lines.extend(
             _source_block(
                 citation_ids,
                 evidence,
@@ -89,6 +177,10 @@ def render_grounding_result(
         ]
 
         lines.extend(
+            _grounding_check_block(result)
+        )
+
+        lines.extend(
             _source_block(
                 citation_ids,
                 evidence,
@@ -106,8 +198,6 @@ def render_grounding_result(
             "to this question.",
             "",
         ]
-
-        source_ids: list[str] = []
 
         for conflict in result.conflicts:
             lines.append(f"{conflict.clause_a} says:")
@@ -131,16 +221,13 @@ def render_grounding_result(
             lines.append(f"Conflict: {conflict.reason}")
             lines.append("")
 
-            source_ids.extend(
-                [
-                    conflict.clause_a,
-                    conflict.clause_b,
-                ]
-            )
-
         lines.append(
             "The manual does not establish which requirement "
             "takes precedence."
+        )
+
+        lines.extend(
+            _grounding_check_block(result)
         )
 
         lines.extend(
@@ -150,6 +237,7 @@ def render_grounding_result(
         return "\n".join(lines).rstrip()
 
     # REFUSE
+
     lines = [
         "REFUSAL",
         "────────────────────────────────────────",
@@ -159,6 +247,10 @@ def render_grounding_result(
         "The retrieved provisions do not establish the specific "
         "information requested.",
     ]
+
+    lines.extend(
+        _grounding_check_block(result)
+    )
 
     lines.extend(
         _escalation_block()

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import contextlib
 import io
+import logging
+
+logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
 
 from src.grounding.conflict import ConflictChecker
 from src.grounding.entailment import EntailmentChecker
