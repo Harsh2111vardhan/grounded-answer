@@ -53,10 +53,19 @@ def _terms(text: str) -> set[str]:
 
 
 def _numbers(text: str) -> list[int]:
-    return [
-        int(value)
-        for value in re.findall(r"\b\d+\b", text)
-    ]
+    """
+    Extract only numbers that are part of explicit time periods.
+
+    This prevents section numbers such as §9.1.4 from being interpreted
+    as deadline values.
+    """
+    matches = re.findall(
+        r"\b(\d+)\s+(?:calendar\s+)?"
+        r"(?:day|days|week|weeks|month|months|year|years)\b",
+        text.lower(),
+    )
+
+    return [int(value) for value in matches]
 
 
 def _has_deadline(text: str) -> bool:
@@ -69,24 +78,66 @@ def _has_deadline(text: str) -> bool:
     )
 
 
+def _potential_conflict_pair(
+    clause_a: Evidence,
+    clause_b: Evidence,
+) -> bool:
+    """
+    Cheap filter before checking a pair for an actual conflict.
+    """
+    overlap = _terms(clause_a.text) & _terms(clause_b.text)
+
+    return len(overlap) >= 2
+
+
+def _question_relevant(
+    question: str,
+    clause_a: Evidence,
+    clause_b: Evidence,
+) -> bool:
+    """
+    Only consider a conflict when both clauses share meaningful
+    subject matter with the user's question.
+    """
+    question_terms = _terms(question)
+
+    if not question_terms:
+        return False
+
+    shared_clause_terms = (
+        _terms(clause_a.text)
+        & _terms(clause_b.text)
+    )
+
+    relevant_terms = question_terms & shared_clause_terms
+
+    return len(relevant_terms) >= 2
+
+
 def _deadline_conflict(
     clause_a: Evidence,
     clause_b: Evidence,
 ) -> str | None:
     """
-    Detect obvious deadline contradictions without using an LLM.
+    Detect clear deadline contradictions.
 
-    This intentionally only flags cases where:
-    - both clauses contain a deadline,
-    - their subject matter overlaps,
-    - and the numeric deadlines differ.
+    Different time periods are not automatically contradictory.
+    The clauses must describe the same type of obligation.
+
+    For example:
+        §4.3.2 -> report a change within 10 days
+        §9.1.4 -> reported change within 30 days
+
+    is a potential conflict.
+
+    But:
+        §9.6.1 -> exclusion for 13 weeks
+        §9.1.4 -> reporting within 30 days
+
+    is not a deadline conflict because exclusion and reporting are
+    different obligations.
     """
     if not (_has_deadline(clause_a.text) and _has_deadline(clause_b.text)):
-        return None
-
-    overlap = _terms(clause_a.text) & _terms(clause_b.text)
-
-    if len(overlap) < 2:
         return None
 
     numbers_a = _numbers(clause_a.text)
@@ -98,36 +149,78 @@ def _deadline_conflict(
     if numbers_a[0] == numbers_b[0]:
         return None
 
-    return (
-        f"The clauses contain different deadlines "
-        f"({numbers_a[0]} vs {numbers_b[0]})."
-    )
+    terms_a = _terms(clause_a.text)
+    terms_b = _terms(clause_b.text)
 
+    shared = terms_a & terms_b
 
-def _potential_conflict_pair(
-    clause_a: Evidence,
-    clause_b: Evidence,
-) -> bool:
-    """
-    Cheap relevance filter.
+    # Reporting / notification obligation.
+    reporting_terms = {
+        "report",
+        "reported",
+        "reporting",
+        "notify",
+        "notification",
+        "notice",
+    }
 
-    Only compare clauses that share meaningful terms.
-    """
-    overlap = _terms(clause_a.text) & _terms(clause_b.text)
+    if shared & reporting_terms:
+        return (
+            f"The clauses contain different deadlines "
+            f"({numbers_a[0]} vs {numbers_b[0]})."
+        )
 
-    if len(overlap) >= 2:
-        return True
+    # Application / submission obligation.
+    application_terms = {
+        "application",
+        "applicant",
+        "submit",
+        "submitted",
+        "submission",
+    }
 
-    return False
+    if len(shared & application_terms) >= 2:
+        return (
+            f"The clauses contain different deadlines "
+            f"({numbers_a[0]} vs {numbers_b[0]})."
+        )
+
+    # Interview / attendance obligation.
+    interview_terms = {
+        "interview",
+        "attend",
+        "attendance",
+    }
+
+    if len(shared & interview_terms) >= 1:
+        return (
+            f"The clauses contain different deadlines "
+            f"({numbers_a[0]} vs {numbers_b[0]})."
+        )
+
+    # Review / appeal obligation.
+    review_terms = {
+        "review",
+        "appeal",
+        "exercise",
+    }
+
+    if len(shared & review_terms) >= 1:
+        return (
+            f"The clauses contain different deadlines "
+            f"({numbers_a[0]} vs {numbers_b[0]})."
+        )
+
+    return None
 
 
 class ConflictChecker:
     """
     Local conflict detector.
 
-    This deliberately does not call an LLM. It catches clear contradictions
-    that can be established from the text itself and avoids spending API
-    quota on pairwise clause comparisons.
+    The checker does not call an LLM. It detects clear textual
+    contradictions while avoiding unrelated time periods being treated
+    as conflicting rules.
     """
 
     def check(
@@ -143,7 +236,10 @@ class ConflictChecker:
                 reason="The same clause cannot conflict with itself.",
             )
 
-        reason = _deadline_conflict(clause_a, clause_b)
+        reason = _deadline_conflict(
+            clause_a,
+            clause_b,
+        )
 
         if reason:
             return ConflictResult(
@@ -162,6 +258,7 @@ class ConflictChecker:
 
     def check_all(
         self,
+        question: str,
         evidence: list[Evidence],
     ) -> list[ConflictResult]:
         results: list[ConflictResult] = []
@@ -174,7 +271,17 @@ class ConflictChecker:
                 ):
                     continue
 
-                result = self.check(clause_a, clause_b)
+                if not _question_relevant(
+                    question,
+                    clause_a,
+                    clause_b,
+                ):
+                    continue
+
+                result = self.check(
+                    clause_a,
+                    clause_b,
+                )
 
                 if result.conflict:
                     results.append(result)

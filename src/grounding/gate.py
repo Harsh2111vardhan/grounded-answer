@@ -38,6 +38,7 @@ class GroundingGate:
 
     def evaluate(
         self,
+        question: str,
         answer: str,
         evidence: list[Evidence],
     ) -> GroundingResult:
@@ -60,7 +61,7 @@ class GroundingGate:
             )
 
         # A citation that does not exist in the retrieved evidence is an
-        # immediate grounding failure. Don't spend more API calls verifying it.
+        # immediate grounding failure.
         if not citation_check.valid:
             return GroundingResult(
                 decision=GroundingDecision.PARTIAL,
@@ -71,8 +72,28 @@ class GroundingGate:
                 uncited_sentences=uncited_sentences,
             )
 
+        # Check the retrieved evidence for contradictions that are relevant
+        # to the user's question.
+        conflicts = self.conflict_checker.check_all(
+            question,
+            evidence,
+        )
+
+        # A relevant policy conflict takes precedence over the generated
+        # answer. The system must not silently choose one provision.
+        if conflicts:
+            return GroundingResult(
+                decision=GroundingDecision.CONFLICT,
+                answer=answer,
+                citation_check=citation_check,
+                entailments=[],
+                conflicts=conflicts,
+                uncited_sentences=uncited_sentences,
+            )
+
         claims = extract_claims(answer)
 
+        # An answer without verifiable claims cannot be safely grounded.
         if not claims:
             return GroundingResult(
                 decision=GroundingDecision.REFUSE,
@@ -83,14 +104,14 @@ class GroundingGate:
                 uncited_sentences=uncited_sentences,
             )
 
-        # Verify claims first.
+        # Verify generated claims against the retrieved policy evidence.
         entailments = self.entailment_checker.check_all(
             claims,
             evidence,
         )
 
-        # If no claims are supported, don't waste API calls looking for
-        # conflicts in unrelated evidence.
+        # If none of the claims are supported and there is no relevant
+        # policy conflict, refuse rather than allowing an unsupported answer.
         if not any(result.supported for result in entailments):
             return GroundingResult(
                 decision=GroundingDecision.REFUSE,
@@ -101,13 +122,7 @@ class GroundingGate:
                 uncited_sentences=uncited_sentences,
             )
 
-        # Only run conflict detection after we know the answer has at least
-        # some grounded content.
-        conflicts = self.conflict_checker.check_all(evidence)
-
-        if conflicts:
-            decision = GroundingDecision.CONFLICT
-        elif all(result.supported for result in entailments):
+        if all(result.supported for result in entailments):
             decision = GroundingDecision.ANSWER
         else:
             decision = GroundingDecision.PARTIAL
@@ -117,43 +132,6 @@ class GroundingGate:
             answer=answer,
             citation_check=citation_check,
             entailments=entailments,
-            conflicts=conflicts,
+            conflicts=[],
             uncited_sentences=uncited_sentences,
         )
-
-
-def format_grounding_result(result: GroundingResult) -> str:
-    """Turn a grounding decision into a user-facing response."""
-
-    if result.decision == GroundingDecision.CONFLICT:
-        lines = [
-            "The policy manual contains conflicting provisions relevant to this question."
-        ]
-
-        for conflict in result.conflicts:
-            lines.append(
-                f"{conflict.clause_a} and {conflict.clause_b}: "
-                f"{conflict.reason}"
-            )
-
-        lines.append(
-            "The supplied provisions do not establish which requirement "
-            "takes precedence."
-        )
-
-        return "\n".join(lines)
-
-    if result.decision == GroundingDecision.REFUSE:
-        return (
-            "I can't give a grounded answer from the policy evidence "
-            "retrieved for this question."
-        )
-
-    if result.decision == GroundingDecision.PARTIAL:
-        return (
-            f"{result.answer}\n\n"
-            "Some parts of this answer could not be fully supported "
-            "by the retrieved policy evidence."
-        )
-
-    return result.answer

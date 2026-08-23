@@ -1,0 +1,52 @@
+[
+  {
+    "id": "Q01",
+    "question": "A person is enrolled in a course at an accredited institution, but the institution does not classify the enrolment as full-time. Should the person be treated as a full-time student under the policy?",
+    "expected": "ANSWER"
+  },
+  {
+    "id": "Q02",
+    "question": "Does the number of contact hours determine whether an enrolment qualifies as full-time?",
+    "expected": "ANSWER"
+  },
+  {
+    "id": "Q03",
+    "question": "A recipient reports a change of circumstances. What is the applicable reporting deadline, and which provision establishes it?",
+    "expected": "CONFLICT"
+  },
+  {
+    "id": "Q04",
+    "question": "A recipient deliberately fails to disclose a material fact. What actions may the Department take, and what happens to the deduction limit where §9.6 applies?",
+    "expected": "ANSWER"
+  },
+  {
+    "id": "Q05",
+    "question": "The Department requires a recipient to attend an interview because the information supplied is incomplete. How much notice must be given, what must the notice state, and may the recipient bring someone with them?",
+    "expected": "ANSWER"
+  },
+  {
+    "id": "Q06",
+    "question": "A determination has been made. What information must the written notification contain, and when does the determination take effect?",
+    "expected": "ANSWER"
+  },
+  {
+    "id": "Q07",
+    "question": "If a recipient deliberately misrepresents a material fact, what is the exact criminal sentence, which court has jurisdiction, and what criminal record will result?",
+    "expected": "REFUSE"
+  },
+  {
+    "id": "Q08",
+    "question": "The policy mentions consequences for deliberately misrepresenting or failing to disclose a material fact. Does the manual establish a criminal prosecution procedure or a specific criminal penalty for that conduct?",
+    "expected": "REFUSE"
+  },
+  {
+    "id": "Q09",
+    "question": "A recipient has reported a change of circumstances. Can the Department automatically terminate the recipient's award solely because a change was reported?",
+    "expected": "REFUSE"
+  },
+  {
+    "id": "Q10",
+    "question": "The retrieved provisions give different reporting periods for a change of circumstances. Which deadline should a caseworker apply, and what evidence in the manual determines which provision takes precedence?",
+    "expected": "CONFLICT"
+  }
+]

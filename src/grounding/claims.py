@@ -32,7 +32,12 @@ def extract_claims(answer: str) -> list[Claim]:
         ).strip()
 
         for citation in citations:
-            claims.append(Claim(text=claim_text, citation=citation))
+            claims.append(
+                Claim(
+                    text=claim_text,
+                    citation=citation,
+                )
+            )
 
     return claims
 
